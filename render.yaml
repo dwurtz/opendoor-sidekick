@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: opendoor-sidekick
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: AGENT_ID
+        sync: false
+      - key: OPENDOOR_LOCATION
+        value: "Phoenix, AZ"
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
