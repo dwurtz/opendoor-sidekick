@@ -1,10 +1,11 @@
 "use client";
 
 import { useConversation } from "@elevenlabs/react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Listing } from "@/lib/opendoor";
 import { ListingsPanel } from "./ListingsPanel";
 import { PropertyDetail } from "./PropertyDetail";
+import { CompareView } from "./CompareView";
 
 function fixImageUrl(listing: Listing): Listing {
   if (listing.id && (!listing.imageUrl || listing.imageUrl.includes("opendoor.com"))) {
@@ -25,7 +26,9 @@ async function getSignedUrl(): Promise<string> {
 
 export function ConversationalAgent() {
   const [listings, setListings] = useState<Listing[]>([]);
+  const listingsRef = useRef<Listing[]>([]);
   const [highlightedListing, setHighlightedListing] = useState<Listing | null>(null);
+  const [comparedListings, setComparedListings] = useState<[Listing, Listing] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const conversation = useConversation({
@@ -36,6 +39,7 @@ export function ConversationalAgent() {
     onDisconnect: () => {
       console.log("Disconnected from agent");
       setHighlightedListing(null);
+      setComparedListings(null);
     },
     onError: (err) => {
       console.error("Conversation error:", err);
@@ -45,26 +49,80 @@ export function ConversationalAgent() {
       console.log("Message:", message);
     },
     clientTools: {
-      displayListings: async (params: { listings_json: string }) => {
+      // Single tool: fetches from our API AND displays — no webhook needed
+      search_listings: async (params: {
+        location?: string;
+        min_price?: string;
+        max_price?: string;
+        min_beds?: string;
+      }) => {
         try {
-          const parsed = JSON.parse(params.listings_json);
-          const listingsArr = Array.isArray(parsed)
-            ? parsed
-            : parsed.listings || [];
-          setListings(listingsArr.map(fixImageUrl));
-          return `Displayed ${listingsArr.length} listings to the user.`;
+          const res = await fetch("/api/listings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: params.location,
+              min_price: params.min_price ? Number(params.min_price) : undefined,
+              max_price: params.max_price ? Number(params.max_price) : undefined,
+              min_beds: params.min_beds ? Number(params.min_beds) : undefined,
+            }),
+          });
+          const data = await res.json();
+          const listingsArr: Listing[] = data.listings || [];
+          const fixed = listingsArr.map(fixImageUrl);
+          listingsRef.current = fixed;
+          setListings(fixed);
+          // Detailed summary so the LLM has no reason to hallucinate
+          const lines = fixed.map(
+            (l, i) => {
+              const parts = [
+                `${i + 1}. ${l.address}, ${l.city}, ${l.state} ${l.zip}`,
+                `   Price: $${l.price.toLocaleString()} | ${l.beds} bed / ${l.baths} bath / ${l.sqft.toLocaleString()} sqft`,
+              ];
+              if (l.yearBuilt) parts.push(`   Built: ${l.yearBuilt} | Type: ${l.propertyType}`);
+              if (l.pricePerSqft) parts.push(`   Price/sqft: ${l.pricePerSqft}`);
+              if (l.lotSize) parts.push(`   Lot: ${l.lotSize}`);
+              if (l.garage) parts.push(`   Garage: ${l.garage}`);
+              if (l.hoaFees) parts.push(`   HOA: ${l.hoaFees}`);
+              if (l.estimatedPayment) parts.push(`   Est. payment: ${l.estimatedPayment}`);
+              if (l.neighborhood) parts.push(`   Neighborhood: ${l.neighborhood}`);
+              if (l.schoolDistrict) parts.push(`   Schools: ${l.schoolDistrict}`);
+              if (l.features) parts.push(`   Features: ${l.features}`);
+              if (l.description) parts.push(`   ${l.description.slice(0, 200)}`);
+              return parts.join("\n");
+            }
+          );
+          return `THESE ARE THE EXACT LISTINGS NOW VISIBLE TO THE USER. Only discuss these specific homes:\n\n${lines.join("\n\n")}`;
         } catch {
-          return "Failed to parse listings data.";
+          return "Failed to fetch listings.";
         }
       },
-      highlightListing: async (params: { listing_json: string }) => {
-        try {
-          const parsed = JSON.parse(params.listing_json);
-          setHighlightedListing(fixImageUrl(parsed));
+      highlightListing: async (params: { address: string }) => {
+        const found = listingsRef.current.find(
+          (l) => l.address.toLowerCase().includes(params.address.toLowerCase())
+            || params.address.toLowerCase().includes(l.address.toLowerCase())
+        );
+        if (found) {
+          setHighlightedListing(found);
+          setComparedListings(null);
           return "Property detail is now displayed to the user.";
-        } catch {
-          return "Failed to parse listing data.";
         }
+        return "Could not find that listing. Try using the exact street address from the search results.";
+      },
+      compareListings: async (params: { address_a: string; address_b: string }) => {
+        const find = (addr: string) =>
+          listingsRef.current.find(
+            (l) => l.address.toLowerCase().includes(addr.toLowerCase())
+              || addr.toLowerCase().includes(l.address.toLowerCase())
+          );
+        const a = find(params.address_a);
+        const b = find(params.address_b);
+        if (a && b) {
+          setComparedListings([a, b]);
+          setHighlightedListing(null);
+          return "Side-by-side comparison is now displayed to the user.";
+        }
+        return `Could not find ${!a ? params.address_a : params.address_b}. Try the exact street address.`;
       },
     },
   });
@@ -98,7 +156,7 @@ export function ConversationalAgent() {
   return (
     <div className="flex flex-col lg:flex-row gap-8 w-full">
       {/* Voice Agent Panel */}
-      <div className={listings.length > 0 || highlightedListing ? "lg:w-[400px] lg:flex-shrink-0" : "max-w-xl mx-auto w-full"}>
+      <div className={listings.length > 0 || highlightedListing || comparedListings ? "lg:w-[400px] lg:flex-shrink-0" : "max-w-xl mx-auto w-full"}>
         <div className="bg-white rounded-2xl border border-od-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.06)] p-10">
           {/* Status Orb */}
           <div className="flex flex-col items-center gap-6 mb-10">
@@ -177,10 +235,16 @@ export function ConversationalAgent() {
         </div>
       </div>
 
-      {/* Property Detail + Listings Panel */}
-      {(highlightedListing || listings.length > 0) && (
+      {/* Property Detail / Compare / Listings Panel */}
+      {(highlightedListing || comparedListings || listings.length > 0) && (
         <div className="flex-1 min-w-0 space-y-6">
-          {highlightedListing && (
+          {comparedListings && (
+            <CompareView
+              listings={comparedListings}
+              onClose={() => setComparedListings(null)}
+            />
+          )}
+          {!comparedListings && highlightedListing && (
             <PropertyDetail
               listing={highlightedListing}
               onClose={() => setHighlightedListing(null)}

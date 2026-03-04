@@ -105,7 +105,8 @@ export async function fetchListings(
   if (filters?.maxPrice) results = results.filter((l) => l.price <= filters.maxPrice!);
   if (filters?.minBeds) results = results.filter((l) => l.beds >= filters.minBeds!);
 
-  return results;
+  // Return at most 6 listings to keep agent context manageable
+  return results.slice(0, 6);
 }
 
 export function formatListingForAgent(listing: Listing): string {
