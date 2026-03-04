@@ -6,6 +6,13 @@ import { Listing } from "@/lib/opendoor";
 import { ListingsPanel } from "./ListingsPanel";
 import { PropertyDetail } from "./PropertyDetail";
 
+function fixImageUrl(listing: Listing): Listing {
+  if (listing.id && (!listing.imageUrl || listing.imageUrl.includes("opendoor.com"))) {
+    return { ...listing, imageUrl: `/listings/${listing.id}.jpg` };
+  }
+  return listing;
+}
+
 async function getSignedUrl(): Promise<string> {
   const res = await fetch("/api/signed-url");
   if (!res.ok) {
@@ -44,7 +51,7 @@ export function ConversationalAgent() {
           const listingsArr = Array.isArray(parsed)
             ? parsed
             : parsed.listings || [];
-          setListings(listingsArr);
+          setListings(listingsArr.map(fixImageUrl));
           return `Displayed ${listingsArr.length} listings to the user.`;
         } catch {
           return "Failed to parse listings data.";
@@ -53,7 +60,7 @@ export function ConversationalAgent() {
       highlightListing: async (params: { listing_json: string }) => {
         try {
           const parsed = JSON.parse(params.listing_json);
-          setHighlightedListing(parsed);
+          setHighlightedListing(fixImageUrl(parsed));
           return "Property detail is now displayed to the user.";
         } catch {
           return "Failed to parse listing data.";
