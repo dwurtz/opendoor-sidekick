@@ -12,6 +12,7 @@ export class AudioStreamer {
   private scheduledTime: number = 0;
   private playing: boolean = false;
   private queue: Float32Array[] = [];
+  private activeSources: AudioBufferSourceNode[] = [];
 
   onPlaybackStateChange: ((playing: boolean) => void) | null = null;
 
@@ -23,12 +24,10 @@ export class AudioStreamer {
 
   /** Decode base64 PCM16 and schedule for playback */
   addPCM16(base64: string): void {
-    // Ensure context is running (may be suspended by autoplay policy)
     if (this.audioContext.state === "suspended") {
       this.audioContext.resume();
     }
 
-    // base64 → Uint8Array → Int16Array → Float32Array
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
@@ -54,30 +53,21 @@ export class AudioStreamer {
   private schedulePlayback(): void {
     while (this.queue.length > 0) {
       const samples = this.queue.shift()!;
-      const buffer = this.audioContext.createBuffer(
-        1,
-        samples.length,
-        SAMPLE_RATE
-      );
+      const buffer = this.audioContext.createBuffer(1, samples.length, SAMPLE_RATE);
       buffer.getChannelData(0).set(samples);
 
       const source = this.audioContext.createBufferSource();
       source.buffer = buffer;
       source.connect(this.gainNode);
 
-      const startTime = Math.max(
-        this.scheduledTime,
-        this.audioContext.currentTime
-      );
+      const startTime = Math.max(this.scheduledTime, this.audioContext.currentTime);
       source.start(startTime);
       this.scheduledTime = startTime + buffer.duration;
 
+      this.activeSources.push(source);
       source.onended = () => {
-        // Check if all audio has finished
-        if (
-          this.queue.length === 0 &&
-          this.audioContext.currentTime >= this.scheduledTime - 0.05
-        ) {
+        this.activeSources = this.activeSources.filter((s) => s !== source);
+        if (this.activeSources.length === 0 && this.queue.length === 0) {
           this.playing = false;
           this.onPlaybackStateChange?.(false);
         }
@@ -88,16 +78,14 @@ export class AudioStreamer {
   /** Stop playback immediately (e.g. when user interrupts) */
   interrupt(): void {
     this.queue = [];
-    // Quick fade out to avoid clicks
-    this.gainNode.gain.linearRampToValueAtTime(
-      0,
-      this.audioContext.currentTime + 0.1
-    );
-    setTimeout(() => {
-      if (this.audioContext.state !== "closed") {
-        this.gainNode.gain.setValueAtTime(1, this.audioContext.currentTime);
-      }
-    }, 150);
+    // Stop all scheduled/playing sources immediately
+    for (const source of this.activeSources) {
+      try { source.stop(); } catch { /* already stopped */ }
+    }
+    this.activeSources = [];
+    // Reset gain in case it was ramped
+    this.gainNode.gain.cancelScheduledValues(this.audioContext.currentTime);
+    this.gainNode.gain.setValueAtTime(1, this.audioContext.currentTime);
     this.playing = false;
     this.scheduledTime = 0;
     this.onPlaybackStateChange?.(false);
