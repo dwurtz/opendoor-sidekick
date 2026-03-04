@@ -269,7 +269,16 @@ export function useGeminiLive() {
           onmessage: async (message: LiveServerMessage) => {
             // Log all message types for debugging
             const keys = Object.keys(message).filter(k => k !== 'constructor');
-            if (message.setupComplete) console.log("Gemini: setupComplete");
+            if (message.setupComplete) {
+              console.log("Gemini: setupComplete");
+              // Prompt Gemini to greet the user (no built-in first message like ElevenLabs)
+              session.sendClientContent({
+                turns: [
+                  { role: "user", parts: [{ text: "Hello! I just connected. Please greet me and ask how you can help me find a home." }] },
+                ],
+                turnComplete: true,
+              });
+            }
             if (message.serverContent?.turnComplete) console.log("Gemini: turnComplete");
             if (message.serverContent?.interrupted) console.log("Gemini: interrupted");
             if (message.toolCall) console.log("Gemini: toolCall", message.toolCall);
