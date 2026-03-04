@@ -13,3 +13,5 @@ services:
         value: "Phoenix, AZ"
       - key: NEXT_PUBLIC_APP_URL
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
