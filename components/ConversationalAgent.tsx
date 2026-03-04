@@ -4,6 +4,7 @@ import { useConversation } from "@elevenlabs/react";
 import { useCallback, useState } from "react";
 import { Listing } from "@/lib/opendoor";
 import { ListingsPanel } from "./ListingsPanel";
+import { PropertyDetail } from "./PropertyDetail";
 
 async function getSignedUrl(): Promise<string> {
   const res = await fetch("/api/signed-url");
@@ -17,6 +18,7 @@ async function getSignedUrl(): Promise<string> {
 
 export function ConversationalAgent() {
   const [listings, setListings] = useState<Listing[]>([]);
+  const [highlightedListing, setHighlightedListing] = useState<Listing | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const conversation = useConversation({
@@ -26,6 +28,7 @@ export function ConversationalAgent() {
     },
     onDisconnect: () => {
       console.log("Disconnected from agent");
+      setHighlightedListing(null);
     },
     onError: (err) => {
       console.error("Conversation error:", err);
@@ -45,6 +48,15 @@ export function ConversationalAgent() {
           return `Displayed ${listingsArr.length} listings to the user.`;
         } catch {
           return "Failed to parse listings data.";
+        }
+      },
+      highlightListing: async (params: { listing_json: string }) => {
+        try {
+          const parsed = JSON.parse(params.listing_json);
+          setHighlightedListing(parsed);
+          return "Property detail is now displayed to the user.";
+        } catch {
+          return "Failed to parse listing data.";
         }
       },
     },
@@ -79,7 +91,7 @@ export function ConversationalAgent() {
   return (
     <div className="flex flex-col lg:flex-row gap-8 w-full">
       {/* Voice Agent Panel */}
-      <div className={listings.length > 0 ? "lg:w-[400px] lg:flex-shrink-0" : "max-w-xl mx-auto w-full"}>
+      <div className={listings.length > 0 || highlightedListing ? "lg:w-[400px] lg:flex-shrink-0" : "max-w-xl mx-auto w-full"}>
         <div className="bg-white rounded-2xl border border-od-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.06)] p-10">
           {/* Status Orb */}
           <div className="flex flex-col items-center gap-6 mb-10">
@@ -158,10 +170,16 @@ export function ConversationalAgent() {
         </div>
       </div>
 
-      {/* Listings Panel */}
-      {listings.length > 0 && (
-        <div className="flex-1 min-w-0">
-          <ListingsPanel listings={listings} />
+      {/* Property Detail + Listings Panel */}
+      {(highlightedListing || listings.length > 0) && (
+        <div className="flex-1 min-w-0 space-y-6">
+          {highlightedListing && (
+            <PropertyDetail
+              listing={highlightedListing}
+              onClose={() => setHighlightedListing(null)}
+            />
+          )}
+          {listings.length > 0 && <ListingsPanel listings={listings} />}
         </div>
       )}
     </div>

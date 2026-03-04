@@ -129,6 +129,11 @@ export function formatListingForAgent(listing: Listing): string {
     .join("\n");
 }
 
+export function proxyImageUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+}
+
 export function formatAllListingsForAgent(listings: Listing[]): string {
   if (listings.length === 0) return "No listings found in this area.";
   return listings
