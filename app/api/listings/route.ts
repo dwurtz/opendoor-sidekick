@@ -15,12 +15,11 @@ export async function POST(req: NextRequest) {
     const maxPrice = body.max_price ? Number(body.max_price) : undefined;
     const minBeds = body.min_beds ? Number(body.min_beds) : undefined;
 
-    let listings = await fetchListings(location);
-
-    // Apply filters
-    if (minPrice) listings = listings.filter((l) => l.price >= minPrice);
-    if (maxPrice) listings = listings.filter((l) => l.price <= maxPrice);
-    if (minBeds) listings = listings.filter((l) => l.beds >= minBeds);
+    const listings = await fetchListings(location, {
+      minPrice,
+      maxPrice,
+      minBeds,
+    });
 
     const summary = formatAllListingsForAgent(listings);
 
