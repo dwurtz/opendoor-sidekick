@@ -69,7 +69,7 @@ const allListings: Listing[] = (
   sqft: raw.sqft,
   yearBuilt: parseInt(raw.year_built) || 0,
   url: raw.listing_url,
-  imageUrl: raw.primary_image_url,
+  imageUrl: raw.primary_image_url ? `/listings/${raw.id}.jpg` : undefined,
   status: raw.listing_state === "ON_THE_MARKET" ? "For Sale" : raw.listing_state,
   propertyType: raw.property_type,
   description: raw.description,
@@ -127,11 +127,6 @@ export function formatListingForAgent(listing: Listing): string {
   ]
     .filter(Boolean)
     .join("\n");
-}
-
-export function proxyImageUrl(url: string | undefined): string | undefined {
-  if (!url) return undefined;
-  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
 }
 
 export function formatAllListingsForAgent(listings: Listing[]): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Listing, proxyImageUrl } from "@/lib/opendoor";
+import { Listing } from "@/lib/opendoor";
 
 export function ListingsPanel({ listings }: { listings: Listing[] }) {
   return (
@@ -31,7 +31,7 @@ function ListingCard({ listing }: { listing: Listing }) {
       <div className="aspect-[16/10] bg-od-gray-50 relative overflow-hidden">
         {listing.imageUrl ? (
           <img
-            src={proxyImageUrl(listing.imageUrl)}
+            src={listing.imageUrl}
             alt={listing.address}
             className="w-full h-full object-cover"
           />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Listing, proxyImageUrl } from "@/lib/opendoor";
+import { Listing } from "@/lib/opendoor";
 
 export function PropertyDetail({
   listing,
@@ -15,7 +15,7 @@ export function PropertyDetail({
       <div className="relative aspect-[16/9] bg-od-gray-50">
         {listing.imageUrl ? (
           <img
-            src={proxyImageUrl(listing.imageUrl)}
+            src={listing.imageUrl}
             alt={listing.address}
             className="w-full h-full object-cover"
           />
